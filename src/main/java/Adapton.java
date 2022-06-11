@@ -6,6 +6,18 @@ import java.util.function.Supplier;
 
 public class Adapton<T> {
 
+    public static class Ref<T> extends Adapton<T> {
+        private Ref(T value, boolean isClean) {
+            super((adapton) -> adapton.result, isClean);
+            result = value;
+        }
+
+        public void set(T value) {
+            result = value;
+            dirty();
+        }
+    }
+
     static Optional<Adapton> currentlyAdapting = Optional.empty();
 
     final Function<Adapton<T>, T> computation;
@@ -34,27 +46,6 @@ public class Adapton<T> {
         return new Adapton.Ref<>(value, true);
     }
 
-    public <U> void addSubcomputation(Adapton<U> other) {
-        this.subcomputations.add(other);
-        other.supercomputations.add(this);
-    }
-
-    public <U> void removeSubcomputation(Adapton<U> other) {
-        this.subcomputations.remove(other);
-        other.supercomputations.remove(this);
-    }
-
-    public T compute() {
-        if (isClean) {
-            return result;
-        } else {
-            new HashSet<>(subcomputations).forEach(this::removeSubcomputation);
-            isClean = true;
-            result = computation.apply(this);
-            return compute();
-        }
-    }
-
     public T force() {
         final Optional<Adapton> previouslyAdapting = currentlyAdapting;
         currentlyAdapting = Optional.of(this);
@@ -66,22 +57,32 @@ public class Adapton<T> {
         return result;
     }
 
-    public void dirty() {
+    <U> void addSubcomputation(Adapton<U> other) {
+        this.subcomputations.add(other);
+        other.supercomputations.add(this);
+    }
+
+    <U> void removeSubcomputation(Adapton<U> other) {
+        this.subcomputations.remove(other);
+        other.supercomputations.remove(this);
+    }
+
+    T compute() {
+        if (isClean) {
+            return result;
+        } else {
+            new HashSet<>(subcomputations).forEach(this::removeSubcomputation);
+            isClean = true;
+            result = computation.apply(this);
+            return compute();
+        }
+    }
+
+    void dirty() {
         if (isClean) {
             isClean = false;
             supercomputations.forEach(Adapton::dirty);
         }
     }
 
-    public static class Ref<T> extends Adapton<T> {
-        private Ref(T value, boolean isClean) {
-            super((adapton) -> adapton.result, isClean);
-            result = value;
-        }
-
-        public void set(T value) {
-            result = value;
-            dirty();
-        }
-    }
 }
