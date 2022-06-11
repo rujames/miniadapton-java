@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Test;
 class AdaptonTest {
 
     @Test
-    void example() {
+    void compute() {
         final Adapton.Ref<Integer> r1 = Adapton.ref(8);
         final Adapton.Ref<Integer> r2 = Adapton.ref(10);
-        final Adapton<Integer> a = Adapton.thunk((adapton) -> () -> {
+        final Adapton<Integer> a = Adapton.expr((adapton) -> {
             adapton.addSubcomputation(r1);
             adapton.addSubcomputation(r2);
             return r1.compute() - r2.compute();
@@ -18,4 +18,40 @@ class AdaptonTest {
         r1.set(2);
         assertEquals(-8, a.compute());
     }
+
+    @Test
+    void force() {
+        final Adapton.Ref<Integer> r = Adapton.ref(5);
+        final Adapton<Integer> a = Adapton.expr(() -> (r.force() + 3));
+
+        assertEquals(8, a.force());
+
+        r.set(2);
+        assertEquals(5, a.force());
+    }
+
+    @Test
+    void state() {
+        { // forcing a ref from within a ref
+            final Adapton.Ref<Integer> r1 = Adapton.ref(2);
+            final Adapton.Ref<Integer> r2 = Adapton.ref(r1.force() + 4);
+            final Adapton<Integer> a = Adapton.expr(() -> r1.force() + r2.force());
+
+            assertEquals(8, a.force());
+
+            r1.set(10);
+            assertEquals(16, a.force());
+        }
+        { // forcing a ref from within an expr
+            final Adapton.Ref<Integer> r1 = Adapton.ref(2);
+            final Adapton<Integer> r2 = Adapton.expr(() -> r1.force() + 4);
+            final Adapton<Integer> a = Adapton.expr(() -> r1.force() + r2.force());
+
+            assertEquals(8, a.force());
+
+            r1.set(10);
+            assertEquals(24, a.force());
+        }
+    }
+
 }
